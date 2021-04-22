@@ -1,5 +1,7 @@
 Bots.Defaults = {
-    SetModel = "models/mossman.mdl",
+    Model = function(Ent)
+        Ent:SetModel("models/Humans/Group03/Male_0" .. math.random(1, 9) .. ".mdl")
+    end,
     Pos = Vector(),
     Ang = Angle()
 }
