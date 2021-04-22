@@ -9,11 +9,12 @@ end
 
 do
     ENT.Animations = {
-        Run = "RunALL",
-        RunAndAim = "RunAIMALL1",
-        Idle = "Idle1",
+        Run = "run_all",
+        RunAndAim = "run_all",
+        Idle = "lineidle01",
         CombatIdle = "CombatIdle1",
     }
+
 end
 
 do -- Actions
@@ -26,7 +27,8 @@ do -- Actions
 
         if IsValid(Ply) then print("Found")
             Bot:SetTarget(Ply)
-            Bot:SetAnim(Bot.Animations.RunAndAim)
+
+            Bot:SetAnim(Bot.Animations.Run)
             Bot:QueueMovement(Bot.Behavior.FollowTarget)
 
             return true
@@ -34,20 +36,34 @@ do -- Actions
     end
 
     function Behavior.FollowTarget(Bot) print("Follow")
-        Bot:PlayAnim()
-
         Bot.loco:FaceTowards(Bot.Target:GetPos())
 
         local Displacement = ((Bot.Target:GetPos() - Bot:GetPos()) * Vector(1, 1, 0)):GetNormalized()
         Bot:SetPos(Bot:GetPos() + Displacement * 26 * Bot.CycleMul)
+
+        if Bot.Target:GetPos():Distance(Bot:GetPos()) < 75 then
+            Bot:SetAnim(Bot.Animations.Idle)
+            Bot:QueueMovement(Bot.Behavior.IdleFollow)
+
+            return true
+        end
+    end
+
+    function Behavior.IdleFollow(Bot) print("Idle following")
+        Bot.loco:FaceTowards(Bot.Target:GetPos())
+
+        if Bot.Target:GetPos():Distance(Bot:GetPos()) > 125 then
+            Bot:SetAnim(Bot.Animations.Run)
+            Bot:QueueMovement(Bot.Behavior.FollowTarget)
+
+            return true
+        end
     end
 end
 
 function ENT:SetAnim(Anim)
-    self.Cycle     = math.huge
     self.CycleAnim = Anim
-
-    self:PlayAnim()
+    self.Cycle     = 0
 end
 
 function ENT:PlayAnim()
@@ -55,11 +71,10 @@ function ENT:PlayAnim()
         self:SetSequence(self.CycleAnim)
         self:ResetSequenceInfo()
         self:SetCycle(0)
+        self:SetPlaybackRate(self.CycleMul)
 
         self.Cycle = CurTime()
     end
-
-    self:SetPlaybackRate(self.CycleMul)
 end
 
 function ENT:SetTarget(Ent)
@@ -74,6 +89,19 @@ function ENT:QueueInteraction(Behavior)
     table.insert(self.InteractionStack, Behavior)
 end
 
+local Res = {}
+local TraceData = {output = Res, filter = {}}
+
+function ENT:AdjustZ()
+    TraceData.filter[1] = self
+    TraceData.start = self:GetPos() + Vector(0, 0, 48)
+    TraceData.endpos = self:GetPos() - Vector(0, 0, 12)
+
+    util.TraceLine(TraceData)
+
+    self:SetPos(Res.HitPos)
+end
+
 do -- Spawn and remove
     function ENT:Initialize()
         Bots.Bots[self] = true
@@ -81,6 +109,7 @@ do -- Spawn and remove
         self.MovementStack    = {}
         self.InteractionStack = {}
         self.CycleMul         = 1
+        self.Cycle            = 0
         self.Speed            = 25
 
         self:Spawned()
@@ -141,7 +170,6 @@ end
 do -- Thinking
     function ENT:RunBehaviour()
         while true do
-
             do -- Process interaction stack
                 local Function = self.InteractionStack[1]
 
@@ -163,9 +191,13 @@ do -- Thinking
                     end
                 else -- Idle!
                     -- Figure out what to do
+                    self:SetAnim(self.Animations.Idle)
                     self:QueueMovement(self.Behavior.FindPlayer)
                 end
             end
+
+            self:PlayAnim()
+            self:AdjustZ()
 
             coroutine.wait(0)
         end
